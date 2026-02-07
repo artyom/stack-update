@@ -191,11 +191,10 @@ createWaitLoop:
 		return fmt.Errorf("ExecuteChangeSet: %w", err)
 	}
 
+	log.Print("waiting for update to complete, follow the stack update progress in the AWS console")
 	if err := openConsole(*stack.StackId); err != nil {
 		log.Printf("opening browser: %v", err)
 	}
-	log.Print("follow the stack update progress in the AWS console")
-	log.Print("waiting for update to complete")
 
 executeWaitLoop:
 	for ticker := time.NewTicker(3 * time.Second); ; {
