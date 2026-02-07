@@ -145,6 +145,11 @@ createWaitLoop:
 			break createWaitLoop
 		case types.ChangeSetStatusFailed:
 			if descOut.StatusReason != nil && *descOut.StatusReason != "" {
+				if strings.Contains(*descOut.StatusReason, "DescribeEvents") {
+					if err := logChangeSetFailedEvents(ctx, svc, *createOut.Id); err != nil {
+						log.Printf("DescribeEvents: %v", err)
+					}
+				}
 				return fmt.Errorf("change set create: %v, %s", descOut.Status, *descOut.StatusReason)
 			}
 			return fmt.Errorf("change set create: %v", descOut.Status)
@@ -251,6 +256,23 @@ paginate:
 		Host:   "s3." + region + ".amazonaws.com",
 		Path:   path.Join(bucket, key),
 	}).String(), nil
+}
+
+func logChangeSetFailedEvents(ctx context.Context, svc *cloudformation.Client, changeSetName string) error {
+	p := cloudformation.NewDescribeEventsPaginator(svc, &cloudformation.DescribeEventsInput{
+		ChangeSetName: &changeSetName,
+		Filters:       &types.EventFilter{FailedEvents: new(true)},
+	})
+	for p.HasMorePages() {
+		page, err := p.NextPage(ctx)
+		if err != nil {
+			return err
+		}
+		for _, e := range page.OperationEvents {
+			log.Println(unptr(e.LogicalResourceId), e.EventType, unptr(e.ValidationName), e.ValidationStatus, unptr(e.ValidationPath), unptr(e.ValidationStatusReason))
+		}
+	}
+	return nil
 }
 
 func openConsole(arn string) error {
