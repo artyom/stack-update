@@ -215,7 +215,7 @@ executeWaitLoop:
 			return fmt.Errorf("change set execution status: %v", descOut.ExecutionStatus)
 		}
 	}
-
+	skipChangeSetDelete = true
 	return nil
 }
 
