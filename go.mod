@@ -1,6 +1,6 @@
 module github.com/artyom/stack-update
 
-go 1.26rc3
+go 1.26.0
 
 require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.7
