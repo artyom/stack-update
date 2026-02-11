@@ -164,7 +164,7 @@ createWaitLoop:
 
 	if len(descOut.Changes) != 0 {
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, "Action\tReplacement\tResType\tLogicalID\tPhysicalID\t")
+		fmt.Fprintln(tw, "\nAction\tReplacement\tResType\tLogicalID\tPhysicalID\t")
 		for _, c := range descOut.Changes {
 			if c.Type != types.ChangeTypeResource {
 				return fmt.Errorf("unsupported change type: %v", c.Type)
