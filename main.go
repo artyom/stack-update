@@ -286,9 +286,11 @@ func openConsole(arn string) error {
 		RawQuery: (url.Values{"arn": {arn}}).Encode(),
 	}
 	var openCmd string
+	var args []string
 	switch runtime.GOOS {
 	case "darwin":
 		openCmd = "open"
+		args = []string{"-g"}
 	case "linux", "freebsd":
 		openCmd = "xdg-open"
 	case "windows":
@@ -296,7 +298,7 @@ func openConsole(arn string) error {
 	default:
 		return fmt.Errorf("don't know how to open url on %s", runtime.GOOS)
 	}
-	return exec.Command(openCmd, u.String()).Run()
+	return exec.Command(openCmd, append(args, u.String())...).Run()
 }
 
 func arnRegion(arn string) (string, error) {
