@@ -275,13 +275,9 @@ func logChangeSetFailedEvents(ctx context.Context, svc *cloudformation.Client, c
 }
 
 func openConsole(arn string) error {
-	region, err := arnRegion(arn)
-	if err != nil {
-		return err
-	}
 	u := url.URL{
 		Scheme:   "https",
-		Host:     region + ".console.aws.amazon.com",
+		Host:     "console.aws.amazon.com",
 		Path:     "/go/view",
 		RawQuery: (url.Values{"arn": {arn}}).Encode(),
 	}
