@@ -183,6 +183,7 @@ createWaitLoop:
 		return fmt.Errorf("unexpected change set execution status: %v", s)
 	}
 
+	var warn bool
 	if len(descOut.Changes) != 0 {
 		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
 		fmt.Fprintln(tw, "\nAction\tReplacement\tResType\tLogicalID\tPhysicalID\t")
@@ -192,11 +193,15 @@ createWaitLoop:
 			}
 			rc := c.ResourceChange
 			fmt.Fprintf(tw, "%v\t%v\t%v\t%v\t%v\t\n", rc.Action, rc.Replacement, unptr(rc.ResourceType), unptr(rc.LogicalResourceId), unptr(rc.PhysicalResourceId))
+			warn = warn || rc.Action == types.ChangeActionRemove || (rc.Replacement != "" && rc.Replacement != types.ReplacementFalse)
 		}
 		tw.Flush()
 	}
 
 	fmt.Println()
+	if warn {
+		fmt.Println("\033[1mThis update may replace or remove some resources.\033[0m")
+	}
 	fmt.Print("Do you want to continue? [y/N] ")
 	input, err := bufio.NewReader(io.LimitReader(os.Stdin, 10)).ReadString('\n')
 	if err != nil {
