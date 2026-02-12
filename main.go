@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"maps"
 	"net/url"
 	"os"
 	"os/exec"
@@ -18,6 +19,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -35,18 +37,26 @@ func main() {
 	flag.Parse()
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
-	if err := run(ctx, name, flag.Arg(0)); err != nil {
+	rest := flag.Args()
+	if len(rest) >= 1 {
+		rest = rest[1:]
+	}
+	if err := run(ctx, name, flag.Arg(0), rest); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(ctx context.Context, stackName, templateFile string) error {
+func run(ctx context.Context, stackName, templateFile string, rest []string) error {
 	if templateFile == "" {
 		return errors.New("want template file as the first argument")
 	}
 	if stackName == "" {
 		s := filepath.Base(templateFile)
 		stackName = strings.TrimSuffix(s, filepath.Ext(s))
+	}
+	overrides, err := parameterOverrides(rest)
+	if err != nil {
+		return err
 	}
 
 	template, err := os.ReadFile(templateFile)
@@ -74,7 +84,18 @@ func run(ctx context.Context, stackName, templateFile string) error {
 	var params []types.Parameter
 	for _, p := range stack.Parameters {
 		k := unptr(p.ParameterKey)
+		if v, ok := overrides[k]; ok {
+			params = append(params, types.Parameter{ParameterKey: &k, ParameterValue: &v})
+			delete(overrides, k)
+			continue
+		}
 		params = append(params, types.Parameter{ParameterKey: &k, UsePreviousValue: new(true)})
+	}
+	if len(overrides) != 0 {
+		log.Printf("stack has no parameters with these names (it's ok if your template adds them): %s", strings.Join(slices.Sorted(maps.Keys(overrides)), ", "))
+		for k, v := range overrides {
+			params = append(params, types.Parameter{ParameterKey: &k, ParameterValue: &v})
+		}
 	}
 
 	changeSetID := "cs-" + rand.Text()
@@ -274,6 +295,25 @@ func logChangeSetFailedEvents(ctx context.Context, svc *cloudformation.Client, c
 	return nil
 }
 
+func parameterOverrides(args []string) (map[string]string, error) {
+	var m map[string]string
+	for _, s := range args {
+		if m == nil {
+			m = map[string]string{}
+		}
+		k, v, ok := strings.Cut(s, "=")
+		if !ok {
+			return nil, fmt.Errorf("want key=value pair for stack parameter, got %q", s)
+		}
+		k, v = strings.TrimSpace(k), strings.TrimSpace(v)
+		if k == "" || v == "" {
+			return nil, fmt.Errorf("want key=value pair for stack parameter where both key and value are non-empty, got %q", s)
+		}
+		m[k] = v
+	}
+	return m, nil
+}
+
 func openConsole(arn string) error {
 	u := url.URL{
 		Scheme:   "https",
@@ -326,7 +366,7 @@ func unptr[T any](v *T) T {
 
 func init() {
 	flag.Usage = func() {
-		fmt.Fprintf(flag.CommandLine.Output(), "usage: %s [flags] path/to/template.yml\n", filepath.Base(os.Args[0]))
+		fmt.Fprintf(flag.CommandLine.Output(), "usage: %s [flags] path/to/template.yml [key=value ...]\n", filepath.Base(os.Args[0]))
 		flag.PrintDefaults()
 	}
 }
