@@ -107,7 +107,6 @@ func run(ctx context.Context, stackName, templateFile string, rest []string) err
 		TemplateBody:  new(string(template)),
 		Description:   new("created using stack-update tool"),
 		Capabilities:  stack.Capabilities,
-		// TODO: corner case — when the change itself creates a resource that requires new capability
 	}
 
 	if len(template) > 51_200 { // template is too big to be provided inline
@@ -124,6 +123,20 @@ func run(ctx context.Context, stackName, templateFile string, rest []string) err
 	}
 
 	createOut, err := svc.CreateChangeSet(ctx, inp)
+	if e, ok := errors.AsType[*types.InsufficientCapabilitiesException](err) ; ok {
+		errtext := e.Error()
+		var updatedCaps bool
+		for _, s := range (types.Capability)("").Values() {
+			if strings.Contains(errtext, string(s)) && !slices.Contains(inp.Capabilities, s) {
+				log.Println("added missing capability", s)
+				inp.Capabilities = append(inp.Capabilities, s)
+				updatedCaps = true
+			}
+		}
+		if updatedCaps {
+			createOut, err = svc.CreateChangeSet(ctx, inp)
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("CreateChangeSet: %w", err)
 	}
