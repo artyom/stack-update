@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -109,6 +110,19 @@ func run(ctx context.Context, stackName, templateFile string, rest []string) err
 		Capabilities:  stack.Capabilities,
 	}
 
+	// Even though there's a logic below on CreateChangeSet that catches types.InsufficientCapabilitiesException,
+	// CloudFormation isn't very consistent returning it, and in some cases I've seen CreateChangeSet succeeding,
+	// and failing on the execution stage, reaching FAILED status and “Requires capabilities : [CAPABILITY_IAM]”
+	// status reason.
+	if regexp.MustCompile(`Type"?\s*:\s*"?AWS::IAM::`).Match(template) {
+		for _, cap := range [...]types.Capability{types.CapabilityCapabilityIam, types.CapabilityCapabilityNamedIam} {
+			if !slices.Contains(inp.Capabilities, cap) {
+				inp.Capabilities = append(inp.Capabilities, cap)
+				log.Println("added capability", cap)
+			}
+		}
+	}
+
 	if len(template) > 51_200 { // template is too big to be provided inline
 		region, err := arnRegion(*stack.StackId)
 		if err != nil {
@@ -123,7 +137,7 @@ func run(ctx context.Context, stackName, templateFile string, rest []string) err
 	}
 
 	createOut, err := svc.CreateChangeSet(ctx, inp)
-	if e, ok := errors.AsType[*types.InsufficientCapabilitiesException](err) ; ok {
+	if e, ok := errors.AsType[*types.InsufficientCapabilitiesException](err); ok {
 		errtext := e.Error()
 		var updatedCaps bool
 		for _, s := range (types.Capability)("").Values() {
