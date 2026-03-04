@@ -49,7 +49,7 @@ func main() {
 
 func run(ctx context.Context, stackName, templateFile string, rest []string) error {
 	if templateFile == "" {
-		return errors.New("want template file as the first argument")
+		return errors.New("expected template file path as the first argument")
 	}
 	if stackName == "" {
 		s := filepath.Base(templateFile)
@@ -171,7 +171,7 @@ func run(ctx context.Context, stackName, templateFile string, rest []string) err
 		}
 	}()
 
-	log.Print("waiting until change set is ready")
+	log.Print("waiting for the change set to become ready")
 
 	var descOut *cloudformation.DescribeChangeSetOutput
 
@@ -244,7 +244,7 @@ createWaitLoop:
 		return fmt.Errorf("ExecuteChangeSet: %w", err)
 	}
 
-	log.Print("waiting for update to complete, follow the stack update progress in the AWS console")
+	log.Print("waiting for the update to complete; you can follow progress in the AWS console")
 	if err := openConsole(*stack.StackId); err != nil {
 		log.Printf("opening browser: %v", err)
 	}
@@ -364,14 +364,14 @@ func openConsole(arn string) error {
 	case "windows":
 		openCmd = "explorer.exe"
 	default:
-		return fmt.Errorf("don't know how to open url on %s", runtime.GOOS)
+		return fmt.Errorf("don't know how to open an URL on %s", runtime.GOOS)
 	}
 	return exec.Command(openCmd, append(args, u.String())...).Run()
 }
 
 func arnRegion(arn string) (string, error) {
 	if !strings.HasPrefix(arn, "arn:") {
-		return "", fmt.Errorf("%q does not look like arn", arn)
+		return "", fmt.Errorf("%q does not look like an ARN", arn)
 	}
 	var region string
 	var i int
@@ -383,7 +383,7 @@ func arnRegion(arn string) (string, error) {
 		i++
 	}
 	if region == "" {
-		return "", fmt.Errorf("cannot extract region from arn %q", arn)
+		return "", fmt.Errorf("cannot extract region from ARN %q", arn)
 	}
 	return region, nil
 }
