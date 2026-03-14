@@ -171,7 +171,7 @@ func run(ctx context.Context, stackName, templateFile string, rest []string) err
 		}
 	}()
 
-	log.Print("waiting for the change set to become ready")
+	log.Print("waiting for change set")
 
 	var descOut *cloudformation.DescribeChangeSetOutput
 
@@ -227,7 +227,7 @@ createWaitLoop:
 
 	fmt.Println()
 	if warn {
-		fmt.Println("\033[1mThis update may replace or remove some resources.\033[0m")
+		fmt.Println("\033[1mWarning: resources may be replaced or removed.\033[0m")
 	}
 	fmt.Print("Do you want to continue? [y/N] ")
 	input, err := bufio.NewReader(io.LimitReader(os.Stdin, 10)).ReadString('\n')
@@ -244,7 +244,7 @@ createWaitLoop:
 		return fmt.Errorf("ExecuteChangeSet: %w", err)
 	}
 
-	log.Print("waiting for the update to complete; you can follow progress in the AWS console")
+	log.Print("waiting for update to complete")
 	if err := openConsole(*stack.StackId); err != nil {
 		log.Printf("opening browser: %v", err)
 	}
