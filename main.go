@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -244,8 +245,10 @@ createWaitLoop:
 	}
 
 	log.Print("waiting for update to complete")
-	if err := openConsole(*stack.StackId); err != nil {
-		log.Printf("opening browser: %v", err)
+	if ok, _ := strconv.ParseBool(os.Getenv("STACK_UPDATE_NO_BROWSER")); !ok {
+		if err := openConsole(*stack.StackId); err != nil {
+			log.Printf("opening browser: %v", err)
+		}
 	}
 
 executeWaitLoop:
