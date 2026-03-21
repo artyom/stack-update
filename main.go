@@ -22,7 +22,6 @@ import (
 	"runtime"
 	"slices"
 	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -212,17 +211,17 @@ createWaitLoop:
 
 	var warn bool
 	if len(descOut.Changes) != 0 {
-		tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-		fmt.Fprintln(tw, "\nAction\tReplacement\tResType\tLogicalID\tPhysicalID\t")
+		tbl := table{{"Action", "Replacement", "ResType", "LogicalID", "PhysicalID"}}
 		for _, c := range descOut.Changes {
 			if c.Type != types.ChangeTypeResource {
 				return fmt.Errorf("unsupported change type: %v", c.Type)
 			}
 			rc := c.ResourceChange
-			fmt.Fprintf(tw, "%v\t%v\t%v\t%v\t%v\t\n", rc.Action, rc.Replacement, unptr(rc.ResourceType), unptr(rc.LogicalResourceId), unptr(rc.PhysicalResourceId))
+			tbl = append(tbl, []any{rc.Action, rc.Replacement, unptr(rc.ResourceType), unptr(rc.LogicalResourceId), unptr(rc.PhysicalResourceId)})
 			warn = warn || rc.Action == types.ChangeActionRemove || (rc.Replacement != "" && rc.Replacement != types.ReplacementFalse)
 		}
-		tw.Flush()
+		fmt.Println()
+		fmt.Print(tbl.Render())
 	}
 
 	fmt.Println()
@@ -401,4 +400,48 @@ func init() {
 		fmt.Fprintf(flag.CommandLine.Output(), "usage: %s [flags] path/to/template.yml [key=value ...]\n", filepath.Base(os.Args[0]))
 		flag.PrintDefaults()
 	}
+}
+
+type table [][]any
+
+func (t table) Render() string {
+	ws := make([]int, len(t[0]))
+	hasValues := make([]bool, len(t[0]))
+	var tmp []byte
+	for ri, row := range t {
+		for i, v := range row {
+			tmp = tmp[:0]
+			tmp = fmt.Append(tmp, v)
+			ws[i] = max(ws[i], len(tmp))
+			if ri != 0 {
+				hasValues[i] = hasValues[i] || len(tmp) != 0
+			}
+		}
+	}
+	formats := make([]string, len(t[0]))
+	for i, w := range ws {
+		formats[i] = fmt.Sprintf("%%-%dv", w)
+	}
+	for i := len(hasValues) - 1; i >= 0; i-- {
+		if hasValues[i] {
+			formats[i] = "%v"
+			break
+		}
+	}
+	var out []byte
+	for _, row := range t {
+		var needSep bool
+		for i, v := range row {
+			if !hasValues[i] {
+				continue
+			}
+			if needSep {
+				out = append(out, "  "...)
+			}
+			out = fmt.Appendf(out, formats[i], v)
+			needSep = true
+		}
+		out = append(out, '\n')
+	}
+	return string(out)
 }
