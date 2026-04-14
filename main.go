@@ -23,6 +23,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -245,11 +246,14 @@ createWaitLoop:
 	}
 
 	log.Print("waiting for update to complete")
-	if ok, _ := strconv.ParseBool(os.Getenv("STACK_UPDATE_NO_BROWSER")); !ok {
-		if err := openConsole(*stack.StackId); err != nil {
-			log.Printf("opening browser: %v", err)
+	openBrowser := sync.OnceFunc(func() {
+		if ok, _ := strconv.ParseBool(os.Getenv("STACK_UPDATE_NO_BROWSER")); !ok {
+			if err := openConsole(*stack.StackId); err != nil {
+				log.Printf("opening browser: %v", err)
+			}
 		}
-	}
+	})
+	defer time.AfterFunc(3*time.Minute, openBrowser).Stop()
 
 executeWaitLoop:
 	for ticker := time.NewTicker(3 * time.Second); ; {
@@ -267,6 +271,7 @@ executeWaitLoop:
 		case types.ExecutionStatusExecuteComplete:
 			break executeWaitLoop
 		default:
+			openBrowser()
 			return fmt.Errorf("change set execution status: %v", descOut.ExecutionStatus)
 		}
 	}
