@@ -219,7 +219,14 @@ createWaitLoop:
 				return fmt.Errorf("unsupported change type: %v", c.Type)
 			}
 			rc := c.ResourceChange
-			tbl = append(tbl, []any{rc.Action, rc.Replacement, unptr(rc.ResourceType), unptr(rc.LogicalResourceId), unptr(rc.PhysicalResourceId)})
+			row := []any{rc.Action, rc.Replacement, unptr(rc.ResourceType), unptr(rc.LogicalResourceId), styled{v: unptr(rc.PhysicalResourceId), sgr: sgrDim}}
+			if rc.Action == types.ChangeActionRemove {
+				row[0] = styled{v: row[0], sgr: sgrBold}
+			}
+			if rc.Replacement != "" && rc.Replacement != types.ReplacementFalse {
+				row[1] = styled{v: row[1], sgr: sgrBold}
+			}
+			tbl = append(tbl, row)
 			warn = warn || rc.Action == types.ChangeActionRemove || (rc.Replacement != "" && rc.Replacement != types.ReplacementFalse)
 		}
 		fmt.Println()
@@ -412,6 +419,14 @@ func init() {
 
 type table [][]any
 
+type styled struct {
+	v   any
+	sgr byte
+}
+
+const sgrBold = 1
+const sgrDim = 2
+
 func (t table) Render() string {
 	ws := make([]int, len(t[0]))
 	hasValues := make([]bool, len(t[0]))
@@ -419,7 +434,12 @@ func (t table) Render() string {
 	for ri, row := range t {
 		for i, v := range row {
 			tmp = tmp[:0]
-			tmp = fmt.Append(tmp, v)
+			switch v := v.(type) {
+			case styled:
+				tmp = fmt.Append(tmp, v.v)
+			default:
+				tmp = fmt.Append(tmp, v)
+			}
 			ws[i] = max(ws[i], len(tmp))
 			if ri != 0 {
 				hasValues[i] = hasValues[i] || len(tmp) != 0
@@ -446,7 +466,16 @@ func (t table) Render() string {
 			if needSep {
 				out = append(out, "  "...)
 			}
-			out = fmt.Appendf(out, formats[i], v)
+			switch v := v.(type) {
+			case styled:
+				out = append(out, "\033["...)
+				out = strconv.AppendUint(out, uint64(v.sgr), 10)
+				out = append(out, 'm')
+				out = fmt.Appendf(out, formats[i], v.v)
+				out = append(out, "\033[0m"...)
+			default:
+				out = fmt.Appendf(out, formats[i], v)
+			}
 			needSep = true
 		}
 		out = append(out, '\n')
