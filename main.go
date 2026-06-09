@@ -351,9 +351,9 @@ func parameterOverrides(args []string) (map[string]string, error) {
 		if !ok {
 			return nil, fmt.Errorf("want key=value pair for stack parameter, got %q", s)
 		}
-		k, v = strings.TrimSpace(k), strings.TrimSpace(v)
-		if k == "" || v == "" {
-			return nil, fmt.Errorf("want key=value pair for stack parameter where both key and value are non-empty, got %q", s)
+		k = strings.TrimSpace(k)
+		if k == "" {
+			return nil, fmt.Errorf("want key=value pair for stack parameter where both key is non-empty, got %q", s)
 		}
 		m[k] = v
 	}
