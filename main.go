@@ -35,7 +35,9 @@ import (
 func main() {
 	log.SetFlags(0)
 	var name string
+	var express bool
 	flag.StringVar(&name, "n", name, "stack `name`; if not set, derived from template name")
+	flag.BoolVar(&express, "e", express, "express mode")
 	flag.Parse()
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
@@ -43,12 +45,12 @@ func main() {
 	if len(rest) >= 1 {
 		rest = rest[1:]
 	}
-	if err := run(ctx, name, flag.Arg(0), rest); err != nil {
+	if err := run(ctx, express, name, flag.Arg(0), rest); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(ctx context.Context, stackName, templateFile string, rest []string) error {
+func run(ctx context.Context, express bool, stackName, templateFile string, rest []string) error {
 	if templateFile == "" {
 		return errors.New("expected template file path as the first argument")
 	}
@@ -109,6 +111,9 @@ func run(ctx context.Context, stackName, templateFile string, rest []string) err
 		TemplateBody:  new(string(template)),
 		Description:   new("created using stack-update tool"),
 		Capabilities:  stack.Capabilities,
+	}
+	if express {
+		inp.DeploymentConfig = &types.DeploymentConfig{Mode: types.DeploymentConfigModeExpress, DisableRollback: new(false)}
 	}
 
 	// Even though there's a logic below on CreateChangeSet that catches types.InsufficientCapabilitiesException,
