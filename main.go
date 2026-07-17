@@ -98,6 +98,9 @@ func run(ctx context.Context, express bool, stackName, templateFile string, rest
 			delete(overrides, k)
 			continue
 		}
+		if !bytes.Contains(template, []byte(k)) { // not super presice, but better than nothing
+			continue
+		}
 		params = append(params, types.Parameter{ParameterKey: &k, UsePreviousValue: new(true)})
 	}
 	if len(overrides) != 0 {
