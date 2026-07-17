@@ -26,6 +26,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation"
 	"github.com/aws/aws-sdk-go-v2/service/cloudformation/types"
@@ -76,6 +77,10 @@ func run(ctx context.Context, express bool, stackName, templateFile string, rest
 		return err
 	}
 	svc := cloudformation.NewFromConfig(cfg)
+
+	if filepath.Base(os.Args[0]) == "stack-create" {
+		return createStack(ctx, cfg, svc, template, stackName, overrides)
+	}
 
 	desc, err := svc.DescribeStacks(ctx, &cloudformation.DescribeStacksInput{StackName: &stackName})
 	if err != nil {
@@ -288,6 +293,45 @@ executeWaitLoop:
 		}
 	}
 	skipChangeSetDelete = true
+	return nil
+}
+
+func createStack(ctx context.Context, cfg aws.Config, svc *cloudformation.Client, template []byte, stackName string, overrides map[string]string) error {
+	var params []types.Parameter
+	for k, v := range overrides {
+		params = append(params, types.Parameter{ParameterKey: &k, ParameterValue: &v})
+	}
+	inp := &cloudformation.CreateStackInput{
+		StackName:    &stackName,
+		Parameters:   params,
+		TemplateBody: new(string(template)),
+		OnFailure:    types.OnFailureDelete,
+	}
+	// TODO: consolidate with similar logic within the run function
+	if regexp.MustCompile(`Type"?\s*:\s*"?AWS::IAM::`).Match(template) {
+		inp.Capabilities = append(inp.Capabilities, types.CapabilityCapabilityIam, types.CapabilityCapabilityNamedIam)
+		log.Println("capabilities added:", inp.Capabilities)
+	}
+	region := svc.Options().Region
+	if region == "" {
+		return errors.New("FIXME: region is not set")
+	}
+	if len(template) > 51_200 { // template is too big to be provided inline
+		url, err := uploadTemplate(ctx, s3.NewFromConfig(cfg), region, stackName, template)
+		if err != nil {
+			return fmt.Errorf("uploading template: %w", err)
+		}
+		inp.TemplateBody = nil
+		inp.TemplateURL = &url
+	}
+	res, err := svc.CreateStack(ctx, inp)
+	if err != nil {
+		return err
+	}
+	log.Print(*res.StackId)
+	if err := openConsole(*res.StackId); err != nil {
+		log.Printf("opening browser: %v", err)
+	}
 	return nil
 }
 
