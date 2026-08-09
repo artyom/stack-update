@@ -90,6 +90,9 @@ func run(ctx context.Context, express bool, stackName, templateFile string, rest
 		return fmt.Errorf("DescribeStacks returned %d stacks, expected 1", l)
 	}
 	stack := desc.Stacks[0]
+	if err := allowUpdates(filepath.Dir(templateFile), unptr(stack.StackId)); err != nil {
+		return err
+	}
 	var params []types.Parameter
 	for _, p := range stack.Parameters {
 		k := unptr(p.ParameterKey)
@@ -533,4 +536,38 @@ func (t table) Render() string {
 		out = append(out, '\n')
 	}
 	return string(out)
+}
+
+func allowUpdates(dir, arn string) error {
+	var targetAccount string
+	var i int
+	for s := range strings.SplitSeq(arn, ":") {
+		if i == 4 { // arn:aws:cloudformation:us-east-1:0123456789:stack/name/random
+			targetAccount = s
+			break
+		}
+		i++
+	}
+	if targetAccount == "" {
+		return fmt.Errorf("cannot extract account id from stack id %q", arn)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, ".stack-update"))
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return nil
+		}
+		return err
+	}
+	for line := range strings.Lines(string(data)) {
+		if after, ok := strings.CutPrefix(line, "only:"); ok {
+			for s := range strings.SplitSeq(after, ",") {
+				s = strings.TrimSpace(s)
+				if targetAccount == s {
+					return nil
+				}
+			}
+			return fmt.Errorf("updating stack on account %s is not allowed by .stack-update policy", targetAccount)
+		}
+	}
+	return nil
 }
